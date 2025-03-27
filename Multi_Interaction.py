@@ -59,8 +59,8 @@ class ResidualStrategy(InteractionStrategy):
 class DifferenceInteractionStrategy(InteractionStrategy):
     def __init__(self):
         # 策略特定模板配置
-        self.image_generator = OpenAI(api_key="openaixxx")
-        # self.image_generator = OpenAI(api_key="openaixxx")
+        self.image_generator = OpenAI(api_key="xxxopenai")
+        # self.image_generator = OpenAI(api_key="xxxopenai")
         self.theme_templates = { 
             "Interaction": {
                 "query": (
@@ -143,60 +143,129 @@ class DifferenceInteractionStrategy(InteractionStrategy):
         return parsed
 
 
-    def generate_themes(self, client, num_themes=5) -> List[ThemeConfig]:
+
+    def generate_themes(self, client, num_themes=10) -> List[ThemeConfig]:
         generated = []
         template = self.theme_templates["Interaction"]
-        # 构建动态提示词
         prompt = f"""模板：
-        {template['query']}
+    {template['query']}
+
+    当前示例：
+    {random.choice(template['examples'])}
+
+    请严格按以下格式响应：
+    主题：[产品]\n
+    步骤1：[操作]\n
+    步骤2: [操作]\n
+    步骤3: [操作]\n
+    步骤4: [操作]\n
+    步骤5: [操作]"""
         
-        当前示例：
-        {random.choice(template['examples'])}
+        # 用于记录已生成的主题
+        past_themes = []
         
-        请严格按以下格式响应：
-        主题：[产品]\n
-        步骤1：[操作]\n
-        步骤2: [操作]\n
-        步骤3: [操作]\n
-        步骤4: [操作]\n
-        步骤5: [操作]"""
         try:
-            for _ in range(num_themes):
+            while len(generated) < num_themes:
+                # 将已生成的主题拼接到系统提示中
+                system_prompt = f"你是专业的技术文档工程师，生成的主题不要与已有主题{past_themes}重复"
                 response = client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
-                        {"role": "system", "content": "你是专业的技术文档工程师"},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
                     stream=False
                 )
-
+                
                 raw_text = response.choices[0].message.content
                 parsed = self._parse_theme_response(raw_text)
-
                 required_fields = ['主题', '步骤1', '步骤2', '步骤3', '步骤4', '步骤5']
                 if not all(key in parsed for key in required_fields):
-                    raise ValueError("响应缺少必要字段")
-
+                    print("响应缺少必要字段，跳过此轮")
+                    continue
+                
                 theme = ThemeConfig(
-                main_theme=parsed['主题'],
-                sub_themes=[
-                    parsed['步骤1'],
-                    parsed['步骤2'],
-                    parsed['步骤3'],
-                    parsed['步骤4'],
-                    parsed['步骤5'],
-                ],        
-                interaction_type="logical"
+                    main_theme=parsed['主题'],
+                    sub_themes=[
+                        parsed['步骤1'],
+                        parsed['步骤2'],
+                        parsed['步骤3'],
+                        parsed['步骤4'],
+                        parsed['步骤5'],
+                    ],
+                    interaction_type="logical"
                 )
                 
+                # 如果生成的主题在历史中已存在，则跳过
+                if theme.main_theme in past_themes:
+                    print("生成的主题重复，重新生成")
+                    continue
+                
                 generated.append(theme)
-                return generated
-                # generated.append(response)
+                past_themes.append(theme.main_theme)
+            
         except Exception as e:
             print(f"ISSUE HAPPENED: {str(e)}")
+        
         return generated
+
+
+
+    # def generate_themes(self, client, num_themes=5) -> List[ThemeConfig]:
+    #     generated = []
+    #     template = self.theme_templates["Interaction"]
+    #     # 构建动态提示词
+    #     prompt = f"""模板：
+    #     {template['query']}
+        
+    #     当前示例：
+    #     {random.choice(template['examples'])}
+        
+    #     请严格按以下格式响应：
+    #     主题：[产品]\n
+    #     步骤1：[操作]\n
+    #     步骤2: [操作]\n
+    #     步骤3: [操作]\n
+    #     步骤4: [操作]\n
+    #     步骤5: [操作]"""
+    #     try:
+    #         for _ in range(num_themes):
+    #             response = client.chat.completions.create(
+    #                 model="deepseek-chat",
+    #                 messages=[
+    #                     {"role": "system", "content": "你是专业的技术文档工程师"},
+    #                     {"role": "user", "content": prompt}
+    #                 ],
+    #                 temperature=0.7,
+    #                 stream=False
+    #             )
+
+    #             raw_text = response.choices[0].message.content
+    #             parsed = self._parse_theme_response(raw_text)
+
+    #             required_fields = ['主题', '步骤1', '步骤2', '步骤3', '步骤4', '步骤5']
+    #             if not all(key in parsed for key in required_fields):
+    #                 raise ValueError("响应缺少必要字段")
+
+    #             theme = ThemeConfig(
+    #             main_theme=parsed['主题'],
+    #             sub_themes=[
+    #                 parsed['步骤1'],
+    #                 parsed['步骤2'],
+    #                 parsed['步骤3'],
+    #                 parsed['步骤4'],
+    #                 parsed['步骤5'],
+    #             ],        
+    #             interaction_type="logical"
+    #             )
+                
+    #             generated.append(theme)
+    #             return generated
+    #             # generated.append(response)
+    #     except Exception as e:
+    #         print(f"ISSUE HAPPENED: {str(e)}")
+    #     return generated
     
     def _parse_theme_response(self, response: str) -> dict:
         import re
@@ -331,12 +400,12 @@ class DifferenceInteractionStrategy(InteractionStrategy):
             videos=video_inputs,
             padding=True,
             return_tensors="pt",
-            max_length=32,)
+            max_length=128,)
         
         inputs = inputs.to("cuda")
 
         # Generate model response
-        generated_ids = model.generate(**inputs, max_new_tokens=32,temperature=0.3)
+        generated_ids = model.generate(**inputs, max_new_tokens=128,temperature=0.3)
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -472,7 +541,7 @@ class DifferenceInteractionStrategy(InteractionStrategy):
                 model="deepseek-chat",
                     messages=[
                         {"role": "system", "content": f"这是说明书：{instrctions}。问一个需要结合多个步骤理解的问题.严格遵循'Q:[问题] \n A:[答案]'回答"},
-                        {"role": "user", "content": f"根据说明书的内容，问一个需要通过多步骤结合理解的非常难的问题。并且给一个对应的答案"},
+                        {"role": "user", "content": f"根据说明书的内容，问一个需要通过多步骤结合理解的非常难的问题。并且给一个分明确几个步骤的答案"},
                     ],
                     stream=False
                 )
@@ -619,7 +688,11 @@ class HallucinationDatasetGenerator:
         print("GT:",GT)
 
         # Generate questions
-        prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
+        # 7B
+        # prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
+
+        # 72B
+        prompt = f"""你是一个判断系统：回答正确则返回[YES],否则返回[NO]，不要回答额外信息"""
         answer = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
@@ -634,7 +707,7 @@ class HallucinationDatasetGenerator:
             history = self.execute_test_case(theme,processor,model,client,ite)
         else:
             return history
-        return history
+        return history, GT
 
 
     def _generate_image(self, prompt: str) -> str:
@@ -657,40 +730,52 @@ class HallucinationDatasetGenerator:
 
     def generate_dataset(self, num_themes=5):
         """主生成流程"""
-        client = OpenAI(api_key="xxxxx", base_url="https://api.deepseek.com")
+        client = OpenAI(api_key="xxx", base_url="https://api.deepseek.com")
         from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
         from qwen_vl_utils import process_vision_info
         import torch
 
 
         # TEST FOR 72B
-        # max_memory = {
-        #     0: "20GB",  
-        #     1: "20GB",
-        #     2: "20GB",
-        #     3: "20GB",
-        #     "cpu": "100GB"
-        # }
-        # model = Qwen2VLForConditionalGeneration.from_pretrained(
-        #     "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
-        #                 device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
-        #     )
+        max_memory = {
+            0: "20GB",  
+            1: "20GB",
+            2: "20GB",
+            3: "20GB",
+            "cpu": "100GB"
+        }
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
+                        device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
+            )
 
 
 
         # TEST FOR 7B
-        model = Qwen2VLForConditionalGeneration.from_pretrained(
-            "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
-                        device_map="auto",
-            )
-        processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-7B-Instruct") 
+        # model = Qwen2VLForConditionalGeneration.from_pretrained(
+        #     "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
+        #                 device_map="auto",
+        #     )
+        processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-72B-Instruct") 
         # 使用当前策略生成主题
         theme_pool = self.generate_themes(client, num_themes)
         
         # 执行所有测试用例
         for theme in theme_pool:
             ite = 0
-            dialogue = self.execute_test_case(theme,processor,model,client,ite)
+            dialogue,GT = self.execute_test_case(theme,processor,model,client,ite)
+            # 提取用于保存的格式
+            dataset_entry = {
+                "history": dialogue,
+                "ground_truth": GT
+            }
+
+            # 保存为 JSON 文件
+            output_file = "airfryer_multimodal_dataset.json"
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(dataset_entry, f, ensure_ascii=False, indent=2)
+
+            print(f"Dataset saved to {output_file}")
         
         self._save_dataset()
         return self.generated_data
