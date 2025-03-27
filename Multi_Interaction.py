@@ -689,10 +689,10 @@ class HallucinationDatasetGenerator:
 
         # Generate questions
         # 7B
-        # prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
+        prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
 
         # 72B
-        prompt = f"""你是一个判断系统：回答正确则返回[YES],否则返回[NO]，不要回答额外信息"""
+        #prompt = f"""你是一个判断系统：回答正确则返回[YES],否则返回[NO]，不要回答额外信息"""
         answer = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
@@ -737,25 +737,25 @@ class HallucinationDatasetGenerator:
 
 
         # TEST FOR 72B
-        max_memory = {
-            0: "20GB",  
-            1: "20GB",
-            2: "20GB",
-            3: "20GB",
-            "cpu": "100GB"
-        }
-        model = Qwen2VLForConditionalGeneration.from_pretrained(
-            "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
-                        device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
-            )
+        #max_memory = {
+        #    0: "20GB",  
+        #    1: "20GB",
+        #    2: "20GB",
+        #    3: "20GB",
+        #    "cpu": "100GB"
+        #}
+        #model = Qwen2VLForConditionalGeneration.from_pretrained(
+        #    "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
+        #                device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
+        #    )
 
 
 
         # TEST FOR 7B
-        # model = Qwen2VLForConditionalGeneration.from_pretrained(
-        #     "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
-        #                 device_map="auto",
-        #     )
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+             "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
+                         device_map="auto",
+             )
         processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-72B-Instruct") 
         # 使用当前策略生成主题
         theme_pool = self.generate_themes(client, num_themes)
