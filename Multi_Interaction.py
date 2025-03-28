@@ -59,8 +59,8 @@ class ResidualStrategy(InteractionStrategy):
 class DifferenceInteractionStrategy(InteractionStrategy):
     def __init__(self):
         # 策略特定模板配置
-        self.image_generator = OpenAI(api_key="xxxopenai")
-        # self.image_generator = OpenAI(api_key="xxxopenai")
+        self.image_generator = OpenAI(api_key="openaikey")
+        # self.image_generator = OpenAI(api_key="openaikey")
         self.theme_templates = { 
             "Interaction": {
                 "query": (
@@ -689,10 +689,10 @@ class HallucinationDatasetGenerator:
 
         # Generate questions
         # 7B
-        prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
+        # prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
 
         # 72B
-        #prompt = f"""你是一个判断系统：回答正确则返回[YES],否则返回[NO]，不要回答额外信息"""
+        prompt = f"""你是一个判断系统：回答正确则返回[YES],否则返回[NO]，不要回答额外信息"""
         answer = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
@@ -730,35 +730,42 @@ class HallucinationDatasetGenerator:
 
     def generate_dataset(self, num_themes=5):
         """主生成流程"""
-        client = OpenAI(api_key="xxx", base_url="https://api.deepseek.com")
+        client = OpenAI(api_key="dskey", base_url="https://api.deepseek.com")
         from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
         from qwen_vl_utils import process_vision_info
         import torch
 
 
         # TEST FOR 72B
-        #max_memory = {
-        #    0: "20GB",  
-        #    1: "20GB",
-        #    2: "20GB",
-        #    3: "20GB",
-        #    "cpu": "100GB"
-        #}
-        #model = Qwen2VLForConditionalGeneration.from_pretrained(
-        #    "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
-        #                device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
-        #    )
+        max_memory = {
+            0: "20GB",  
+            1: "20GB",
+            2: "20GB",
+            3: "20GB",
+            "cpu": "100GB"
+        }
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
+                        device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
+            )
 
 
 
         # TEST FOR 7B
-        model = Qwen2VLForConditionalGeneration.from_pretrained(
-             "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
-                         device_map="auto",
-             )
+        # model = Qwen2VLForConditionalGeneration.from_pretrained(
+        #     "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
+        #                 device_map="auto",
+        #     )
         processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-72B-Instruct") 
         # 使用当前策略生成主题
         theme_pool = self.generate_themes(client, num_themes)
+        import os
+        # 如果文件存在，先读取已有数据
+        if os.path.exists(output_file):
+            with open(output_file, "r", encoding="utf-8") as f:
+                dataset = json.load(f)
+        else:
+            dataset = []
         
         # 执行所有测试用例
         for theme in theme_pool:
@@ -769,13 +776,14 @@ class HallucinationDatasetGenerator:
                 "history": dialogue,
                 "ground_truth": GT
             }
+            dataset.append(dataset_entry)
 
-            # 保存为 JSON 文件
-            output_file = "airfryer_multimodal_dataset.json"
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(dataset_entry, f, ensure_ascii=False, indent=2)
+        # 保存为 JSON 文件
+        output_file = "airfryer_multimodal_dataset.json"
+        with open(output_file, "a", encoding="utf-8") as f:
+            json.dump(dataset_entry, f, ensure_ascii=False, indent=2)
 
-            print(f"Dataset saved to {output_file}")
+        print(f"Dataset saved to {output_file}")
         
         self._save_dataset()
         return self.generated_data
@@ -789,4 +797,4 @@ class HallucinationDatasetGenerator:
 if __name__ == "__main__":
     # 创建差异型交互数据集
     diff_generator = HallucinationDatasetGenerator(DifferenceInteractionStrategy)
-    diff_generator.generate_dataset(3)
+    diff_generator.generate_dataset(2)
