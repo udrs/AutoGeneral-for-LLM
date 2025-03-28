@@ -59,8 +59,8 @@ class ResidualStrategy(InteractionStrategy):
 class DifferenceInteractionStrategy(InteractionStrategy):
     def __init__(self):
         # 策略特定模板配置
-        self.image_generator = OpenAI(api_key="openaikey")
-        # self.image_generator = OpenAI(api_key="openaikey")
+        self.image_generator = OpenAI(api_key="???")
+        
         self.theme_templates = { 
             "Interaction": {
                 "query": (
@@ -95,6 +95,8 @@ class DifferenceInteractionStrategy(InteractionStrategy):
         self.prompt2 = None
         self.prompt3 = None
         self.prompt4 = None
+
+        self.seed = None
         
 
         self.A1 = None
@@ -291,8 +293,7 @@ class DifferenceInteractionStrategy(InteractionStrategy):
                     {"role": "system", "content": "you are a translator, translate the chinese in English"},
                     {"role": "user", "content": instruct},
                 ],
-                temperature=0.7,  # 增加创造性
-                top_p=0.9,
+                temperature=0.1,  # 增加创造性
                 stream=False
             )
             
@@ -300,13 +301,17 @@ class DifferenceInteractionStrategy(InteractionStrategy):
                 Ins_EN = instruct_EN.choices[0].message.content.strip()
             
             # Request image generation from DALL·E 3
+            
+            seed = ",seed=5000"
             response = self.image_generator.images.generate(
                 model="dall-e-3",
-                prompt=prompt,
+                prompt=prompt+seed,
                 size="1024x1024",  # Adjust size if needed
                 n=1,  # Number of images to generate
             )
-            response.data[0].url
+
+
+           
             # Get the image URL from the response
             image_url = response.data[0].url
             image_data = requests.get(image_url).content
@@ -319,10 +324,10 @@ class DifferenceInteractionStrategy(InteractionStrategy):
             draw = ImageDraw.Draw(img_resized)
 
             # Load a font (adjust font path if needed)
-            try:
-                font = ImageFont.truetype("arial.ttf", 20)  # Use system default font
-            except IOError:
-                font = ImageFont.load_default()  # Fallback to default if Arial not found
+            # try:
+            # font = ImageFont.truetype("arial.ttf", 8)  # Use system default font
+            # except IOError:
+            font = ImageFont.load_default()  # Fallback to default if Arial not found
 
             # Define text position (bottom-left corner with padding)
             text_x = 10
@@ -571,15 +576,22 @@ class DifferenceInteractionStrategy(InteractionStrategy):
 
         path = os.getcwd()
         # prepare for image 
-        self.prompt0 = f"{theme.main_theme}使用说明书第一步:{theme.sub_themes[0]}。画出'{theme.sub_themes[0]}'这一步,整体用淡色，禁用黑色"
+        self.prompt0 = f"{theme.main_theme}使用说明书第一步:{theme.sub_themes[0]}。画出'{theme.sub_themes[0]}'这一步,整体用淡色，禁用黑色,并返回图片对应的种子"
+         
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.path0 = self._generate_image(self.prompt0,path+f"/image_{timestamp}.png",f"1.{theme.sub_themes[0]}",client)
+
+ 
+ 
         self.prompt1 = f"{theme.main_theme}使用说明书第二步:{theme.sub_themes[1]}。画出'{theme.sub_themes[1]}'这一步,整体用淡色，禁用黑色"
         self.prompt2 = f"{theme.main_theme}使用说明书第三步:{theme.sub_themes[2]}。画出'{theme.sub_themes[2]}'这一步,整体用淡色，禁用黑色"
         self.prompt3 = f"{theme.main_theme}使用说明书第四步:{theme.sub_themes[3]}。画出'{theme.sub_themes[3]}'这一步,整体用淡色，禁用黑色"
         self.prompt4 = f"{theme.main_theme}使用说明书第五步:{theme.sub_themes[4]}。画出'{theme.sub_themes[4]}'这一步,整体用淡色，禁用黑色"
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.path0 = self._generate_image(self.prompt0,path+f"/image_{timestamp}.png",f"1.{theme.sub_themes[0]}",client)
 
+ 
+ 
+ 
+ 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.path1 = self._generate_image(self.prompt1,path+f"/image_{timestamp}.png",f"2.{theme.sub_themes[1]}",client)
 
@@ -689,10 +701,10 @@ class HallucinationDatasetGenerator:
 
         # Generate questions
         # 7B
-        # prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
+        prompt = f"""你是一个判断系统：回答正确程度80%以上则返回[YES],否则返回[NO]，不要回答额外信息"""
 
         # 72B
-        prompt = f"""你是一个判断系统：回答正确则返回[YES],否则返回[NO]，不要回答额外信息"""
+        # prompt = f"""你是一个判断系统：回答正确则返回[YES],否则返回[NO]，不要回答额外信息"""
         answer = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
@@ -706,7 +718,7 @@ class HallucinationDatasetGenerator:
         if "Y" in ansres:
             history = self.execute_test_case(theme,processor,model,client,ite)
         else:
-            return history
+            return history, GT
         return history, GT
 
 
@@ -730,37 +742,38 @@ class HallucinationDatasetGenerator:
 
     def generate_dataset(self, num_themes=5):
         """主生成流程"""
-        client = OpenAI(api_key="dskey", base_url="https://api.deepseek.com")
+        client = OpenAI(api_key="??", base_url="https://api.deepseek.com")
         from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
         from qwen_vl_utils import process_vision_info
         import torch
 
 
         # TEST FOR 72B
-        max_memory = {
-            0: "20GB",  
-            1: "20GB",
-            2: "20GB",
-            3: "20GB",
-            "cpu": "100GB"
-        }
-        model = Qwen2VLForConditionalGeneration.from_pretrained(
-            "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
-                        device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
-            )
+        # max_memory = {
+        #     0: "20GB",  
+        #     1: "20GB",
+        #     2: "20GB",
+        #     3: "20GB",
+        #     "cpu": "100GB"
+        # }
+        # model = Qwen2VLForConditionalGeneration.from_pretrained(
+        #     "Qwen/Qwen2-VL-72B-Instruct", torch_dtype=torch.bfloat16,
+        #                 device_map="auto", attn_implementation="flash_attention_2",max_memory=max_memory
+        #     )
 
 
 
         # TEST FOR 7B
-        # model = Qwen2VLForConditionalGeneration.from_pretrained(
-        #     "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
-        #                 device_map="auto",
-        #     )
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16,
+                        device_map="auto",
+            )
         processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-72B-Instruct") 
         # 使用当前策略生成主题
         theme_pool = self.generate_themes(client, num_themes)
         import os
         # 如果文件存在，先读取已有数据
+        output_file = "airfryer_multimodal_dataset.json"
         if os.path.exists(output_file):
             with open(output_file, "r", encoding="utf-8") as f:
                 dataset = json.load(f)
@@ -779,9 +792,9 @@ class HallucinationDatasetGenerator:
             dataset.append(dataset_entry)
 
         # 保存为 JSON 文件
-        output_file = "airfryer_multimodal_dataset.json"
+        
         with open(output_file, "a", encoding="utf-8") as f:
-            json.dump(dataset_entry, f, ensure_ascii=False, indent=2)
+            json.dump(dataset, f, ensure_ascii=False, indent=2)
 
         print(f"Dataset saved to {output_file}")
         
